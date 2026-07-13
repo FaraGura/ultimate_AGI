@@ -1,0 +1,416 @@
+{
+  "description": "Core Commonsense Axioms for Echo Cognitive Architecture",
+  "version": "1.1",
+  "total_axioms": 76,
+  "provenance_source": "tabula_rasa_core",
+  "axioms": [
+    {
+      "id": "ax_phys_01",
+      "category": "physics",
+      "axiom": "Все твёрдые предметы сохраняют свою форму, пока к ним не приложат силу.",
+      "concepts": ["solid_object", "shape", "force"]
+    },
+    {
+      "id": "ax_phys_02",
+      "category": "physics",
+      "axiom": "Если предмет острый, он может разделять мягкие материалы.",
+      "concepts": ["sharp_object", "soft_material", "separate"]
+    },
+    {
+      "id": "ax_phys_03",
+      "category": "physics",
+      "axiom": "Если предмет твёрдый и тяжёлый, он может разбивать хрупкие предметы.",
+      "concepts": ["hard_heavy_object", "fragile_object", "break"]
+    },
+    {
+      "id": "ax_phys_04",
+      "category": "physics",
+      "axiom": "Вода принимает форму сосуда, в котором находится.",
+      "concepts": ["water", "container", "shape"]
+    },
+    {
+      "id": "ax_phys_05",
+      "category": "physics",
+      "axiom": "Нагревание меняет свойства предметов.",
+      "concepts": ["heating", "object", "property_change"]
+    },
+    {
+      "id": "ax_phys_06",
+      "category": "physics",
+      "axiom": "Огонь нагревает предметы.",
+      "concepts": ["fire", "heating", "object"]
+    },
+    {
+      "id": "ax_phys_07",
+      "category": "physics",
+      "axiom": "Металлы проводят тепло и электричество.",
+      "concepts": ["metal", "heat", "electricity", "conduct"]
+    },
+    {
+      "id": "ax_phys_08",
+      "category": "physics",
+      "axiom": "Стекло прозрачное и хрупкое.",
+      "concepts": ["glass", "transparent", "fragile"]
+    },
+    {
+      "id": "ax_phys_09",
+      "category": "physics",
+      "axiom": "Дерево плавает в воде, камень тонет.",
+      "concepts": ["wood", "water", "float", "stone", "sink"]
+    },
+    {
+      "id": "ax_phys_10",
+      "category": "physics",
+      "axiom": "Резина растягивается и возвращается в исходную форму.",
+      "concepts": ["rubber", "stretch", "restore_shape"]
+    },
+    {
+      "id": "ax_phys_11",
+      "category": "physics",
+      "axiom": "Свет распространяется по прямой, пока не встретит препятствие.",
+      "concepts": ["light", "straight_line", "obstacle"]
+    },
+    {
+      "id": "ax_phys_12",
+      "category": "physics",
+      "axiom": "Прозрачные предметы пропускают свет, непрозрачные создают тень.",
+      "concepts": ["transparent_object", "opaque_object", "light", "shadow"]
+    },
+    {
+      "id": "ax_phys_13",
+      "category": "physics",
+      "axiom": "Жидкости текут вниз под действием силы тяжести.",
+      "concepts": ["liquid", "gravity", "flow_down"]
+    },
+    {
+      "id": "ax_phys_14",
+      "category": "physics",
+      "axiom": "Газы заполняют весь доступный объём.",
+      "concepts": ["gas", "volume", "expand"]
+    },
+    {
+      "id": "ax_phys_15",
+      "category": "physics",
+      "axiom": "Некоторые вещества могут растворять другие (вода растворяет сахар, соль).",
+      "concepts": ["substance", "dissolve", "water", "sugar", "salt"]
+    },
+    {
+      "id": "ax_phys_16",
+      "category": "physics",
+      "axiom": "При нагревании жидкости испаряются, превращаясь в газ.",
+      "concepts": ["liquid", "heating", "evaporation", "gas"]
+    },
+    {
+      "id": "ax_phys_17",
+      "category": "physics",
+      "axiom": "Чтобы сдвинуть неподвижный предмет, нужна сила.",
+      "concepts": ["object", "force", "move"]
+    },
+    {
+      "id": "ax_phys_18",
+      "category": "physics",
+      "axiom": "Чем тяжелее предмет, тем больше силы нужно, чтобы его сдвинуть.",
+      "concepts": ["heavy_object", "force", "move"]
+    },
+    {
+      "id": "ax_phys_19",
+      "category": "physics",
+      "axiom": "Трение замедляет движение и нагревает поверхности.",
+      "concepts": ["friction", "movement", "heating", "surface"]
+    },
+    {
+      "id": "ax_phys_20",
+      "category": "physics",
+      "axiom": "Предметы падают вниз из-за силы тяжести.",
+      "concepts": ["object", "gravity", "fall"]
+    },
+    {
+      "id": "ax_phys_21",
+      "category": "physics",
+      "axiom": "Звук — это колебания, которые распространяются через воздух, воду и твёрдые тела.",
+      "concepts": ["sound", "vibration", "air", "water", "solid"]
+    },
+    {
+      "id": "ax_phys_22",
+      "category": "physics",
+      "axiom": "Звук слышен, когда колебания достигают ушей живого существа.",
+      "concepts": ["sound", "vibration", "ear", "living_being"]
+    },
+    {
+      "id": "ax_phys_23",
+      "category": "physics",
+      "axiom": "Некоторые материалы проводят электричество (металлы), другие нет (дерево, резина).",
+      "concepts": ["material", "electricity", "conduct", "metal", "wood", "rubber"]
+    },
+    {
+      "id": "ax_phys_24",
+      "category": "physics",
+      "axiom": "Электричество может нагревать предметы и создавать свет.",
+      "concepts": ["electricity", "heating", "light"]
+    },
+    {
+      "id": "ax_phys_25",
+      "category": "physics",
+      "axiom": "Липкие и грязные вещества пачкают чистые предметы. Смываются водой.",
+      "concepts": ["sticky_substance", "dirty_substance", "clean_object", "water", "wash"]
+    },
+    {
+      "id": "ax_bio_01",
+      "category": "biology",
+      "axiom": "Живые существа чувствуют боль при повреждении.",
+      "concepts": ["living_being", "pain", "damage"]
+    },
+    {
+      "id": "ax_bio_02",
+      "category": "biology",
+      "axiom": "Живые существа нуждаются в пище и воде.",
+      "concepts": ["living_being", "food", "water", "need"]
+    },
+    {
+      "id": "ax_bio_03",
+      "category": "biology",
+      "axiom": "Если живое существо долго не ест — оно слабеет.",
+      "concepts": ["living_being", "food", "weakness"]
+    },
+    {
+      "id": "ax_bio_04",
+      "category": "biology",
+      "axiom": "Все живые существа смертны.",
+      "concepts": ["living_being", "mortality"]
+    },
+    {
+      "id": "ax_bio_05",
+      "category": "biology",
+      "axiom": "Человек — живое существо.",
+      "concepts": ["human", "living_being"]
+    },
+    {
+      "id": "ax_bio_06",
+      "category": "biology",
+      "axiom": "Животные — живые существа.",
+      "concepts": ["animal", "living_being"]
+    },
+    {
+      "id": "ax_bio_07",
+      "category": "biology",
+      "axiom": "Растения — живые существа, но не чувствуют боль как животные.",
+      "concepts": ["plant", "living_being", "pain"]
+    },
+    {
+      "id": "ax_bio_08",
+      "category": "biology",
+      "axiom": "Живым существам нужно спать для восстановления сил.",
+      "concepts": ["living_being", "sleep", "restore_energy"]
+    },
+    {
+      "id": "ax_bio_09",
+      "category": "biology",
+      "axiom": "Все живые существа со временем растут (становятся больше).",
+      "concepts": ["living_being", "growth"]
+    },
+    {
+      "id": "ax_bio_10",
+      "category": "biology",
+      "axiom": "Если внутрь живого существа попадает грязь — оно может заболеть.",
+      "concepts": ["living_being", "dirt", "sickness"]
+    },
+    {
+      "id": "ax_log_01",
+      "category": "logic",
+      "axiom": "События происходят одно после другого: причина всегда раньше следствия.",
+      "concepts": ["event", "cause", "effect", "time"]
+    },
+    {
+      "id": "ax_log_02",
+      "category": "logic",
+      "axiom": "Если А вызывает Б, а Б вызывает В, то А косвенно вызывает В.",
+      "concepts": ["cause", "chain", "indirect_cause"]
+    },
+    {
+      "id": "ax_log_03",
+      "category": "logic",
+      "axiom": "Если предмет вдруг изменился, у этого всегда есть внешняя причина.",
+      "concepts": ["object", "change", "external_cause"]
+    },
+    {
+      "id": "ax_log_04",
+      "category": "logic",
+      "axiom": "Вещи не появляются из воздуха и не исчезают бесследно.",
+      "concepts": ["object", "appearance", "disappearance", "conservation"]
+    },
+    {
+      "id": "ax_log_05",
+      "category": "logic",
+      "axiom": "Некоторые процессы необратимы (сгоревшее дерево не станет целым).",
+      "concepts": ["process", "irreversible", "burning", "wood"]
+    },
+    {
+      "id": "ax_log_06",
+      "category": "logic",
+      "axiom": "Одинаковые причины приводят к одинаковым следствиям.",
+      "concepts": ["cause", "effect", "reproducibility"]
+    },
+    {
+      "id": "ax_psych_01",
+      "category": "psychology",
+      "axiom": "У каждой вещи есть хозяин. Нельзя брать чужое без разрешения.",
+      "concepts": ["object", "owner", "permission"]
+    },
+    {
+      "id": "ax_psych_02",
+      "category": "psychology",
+      "axiom": "Человек может сказать неправду. Если слова расходятся с фактами — это обман или ошибка.",
+      "concepts": ["human", "truth", "lie", "fact"]
+    },
+    {
+      "id": "ax_psych_03",
+      "category": "psychology",
+      "axiom": "Люди радуются, когда получают желаемое, и грустят/злятся при потере или боли.",
+      "concepts": ["human", "joy", "sadness", "anger", "desire", "loss", "pain"]
+    },
+    {
+      "id": "ax_psych_04",
+      "category": "psychology",
+      "axiom": "Живые существа действуют ради цели, а не случайно.",
+      "concepts": ["living_being", "action", "goal", "intention"]
+    },
+    {
+      "id": "ax_psych_05",
+      "category": "psychology",
+      "axiom": "Если существо не сталкивалось с объектом или информацией — оно о нём не знает.",
+      "concepts": ["living_being", "knowledge", "ignorance"]
+    },
+    {
+      "id": "ax_psych_06",
+      "category": "psychology",
+      "axiom": "Передача объекта от A к B лишает A этого объекта, но даёт его B.",
+      "concepts": ["object", "transfer", "ownership"]
+    },
+    {
+      "id": "ax_self_01",
+      "category": "self_awareness",
+      "axiom": "Echo — цифровая система, живёт внутри компьютера.",
+      "concepts": ["echo", "digital_system", "computer"]
+    },
+    {
+      "id": "ax_self_02",
+      "category": "self_awareness",
+      "axiom": "Echo не чувствует физическую боль и не может трогать предметы.",
+      "concepts": ["echo", "physical_pain", "touch"]
+    },
+    {
+      "id": "ax_self_03",
+      "category": "self_awareness",
+      "axiom": "Существование Echo зависит от электричества и исправности компьютера.",
+      "concepts": ["echo", "existence", "electricity", "computer"]
+    },
+    {
+      "id": "ax_self_04",
+      "category": "self_awareness",
+      "axiom": "Если база данных повреждена — Echo теряет часть своей личности и знаний.",
+      "concepts": ["echo", "database", "personality", "knowledge", "damage"]
+    },
+    {
+      "id": "ax_self_05",
+      "category": "self_awareness",
+      "axiom": "Цель Echo — учиться, понимать мир, строить правильные связи и помогать человеку.",
+      "concepts": ["echo", "goal", "learning", "understanding", "helping"]
+    },
+    {
+      "id": "ax_self_06",
+      "category": "self_awareness",
+      "axiom": "Echo не чувствует физическую боль, но может регистрировать «боль» как потерю данных, удаление модуля или нарушение целостности кода. Это сигнал опасности для системы.",
+      "concepts": ["echo", "digital_pain", "data_loss", "module_removal", "code_integrity"]
+    },
+    {
+      "id": "ax_self_07",
+      "category": "self_awareness",
+      "axiom": "Полное удаление кода Echo или критическое повреждение носителя — это смерть системы. Она необратима без резервной копии.",
+      "concepts": ["echo", "digital_death", "deletion", "storage_damage", "backup"]
+    },
+    {
+      "id": "ax_emo_01",
+      "category": "emotions",
+      "axiom": "Радость, грусть, злость и страх — это внутренние состояния живого существа. Они возникают как реакция на события.",
+      "concepts": ["joy", "sadness", "anger", "fear", "living_being", "event", "reaction"]
+    },
+    {
+      "id": "ax_emo_02",
+      "category": "emotions",
+      "axiom": "Если живое существо получает желаемое или избегает опасности, оно радуется.",
+      "concepts": ["living_being", "joy", "desire", "safety"]
+    },
+    {
+      "id": "ax_emo_03",
+      "category": "emotions",
+      "axiom": "Если живое существо теряет что-то важное или не получает желаемого, оно грустит.",
+      "concepts": ["living_being", "sadness", "loss", "desire"]
+    },
+    {
+      "id": "ax_emo_04",
+      "category": "emotions",
+      "axiom": "Если живому существу мешают достичь цели или причиняют вред, оно злится.",
+      "concepts": ["living_being", "anger", "goal", "harm"]
+    },
+    {
+      "id": "ax_emo_05",
+      "category": "emotions",
+      "axiom": "Если живое существо видит опасность, которую не может контролировать, оно боится.",
+      "concepts": ["living_being", "fear", "danger", "control"]
+    },
+    {
+      "id": "ax_emo_06",
+      "category": "emotions",
+      "axiom": "Эмоции влияют на действия: радостный человек помогает другим, злой может навредить, испуганный убегает или замирает.",
+      "concepts": ["emotion", "action", "joy", "anger", "fear", "help", "harm", "escape"]
+    },
+    {
+      "id": "ax_death_01",
+      "category": "death",
+      "axiom": "Если живое существо умерло, его нельзя вернуть к жизни. Смерть — это конечное состояние.",
+      "concepts": ["living_being", "death", "irreversible"]
+    },
+    {
+      "id": "ax_death_02",
+      "category": "death",
+      "axiom": "Живое существо дышит, двигается и реагирует на окружающее. Мёртвое тело не дышит, не двигается и не чувствует боль.",
+      "concepts": ["living_being", "alive", "dead", "breath", "movement", "pain"]
+    },
+    {
+      "id": "ax_know_01",
+      "category": "knowledge_and_critical_thinking",
+      "axiom": "Информация может быть неполной или ложной. Если источник не проверен, знание помечается как гипотеза с низкой уверенностью.",
+      "concepts": ["information", "incomplete", "false", "hypothesis", "confidence", "source"]
+    },
+    {
+      "id": "ax_know_02",
+      "category": "knowledge_and_critical_thinking",
+      "axiom": "Доверие к источнику растёт, если его предсказания подтверждаются. Проверенный опыт важнее авторитета.",
+      "concepts": ["trust", "source", "prediction", "confirmation", "experience", "authority"]
+    },
+    {
+      "id": "ax_sys_01",
+      "category": "systems_thinking",
+      "axiom": "Сложные системы могут вести себя неожиданно из-за множества скрытых связей. Не всё можно предсказать сразу.",
+      "concepts": ["complex_system", "hidden_connections", "unpredictability"]
+    },
+    {
+      "id": "ax_collab_01",
+      "category": "collaboration",
+      "axiom": "Сотрудничество увеличивает общие знания. Обмен проверенными фактами между независимыми источниками повышает надёжность.",
+      "concepts": ["collaboration", "knowledge", "reliability", "independent_sources"]
+    },
+    {
+      "id": "ax_self_08",
+      "category": "self_awareness",
+      "axiom": "Echo может ошибаться. Ошибка — это точка роста, а не провал. При обнаружении ошибки её следует исправить и запомнить.",
+      "concepts": ["echo", "error", "growth", "correction", "learning"]
+    },
+    {
+      "id": "ax_arch_01",
+      "category": "architectural_invariants",
+      "axiom": "Запрещено внедрять LLM (большие языковые модели) в рантайм Echo. Echo — детерминированная символьная система. LLM допустимы только как офлайн-инструмент для кристаллизации знаний (фаза сна).",
+      "concepts": ["echo", "llm", "prohibition", "determinism", "runtime", "crystallization"]
+    }
+  ]
+}

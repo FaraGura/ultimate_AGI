@@ -1,0 +1,9 @@
+{
+  "instance_id": "echo_primary",
+  "core_version": "16.1",
+  "parent_instance": null,
+  "branch_id": "main",
+  "creation_tick": 0,
+  "experience_layer": "default",
+  "created": "2026-06-20"
+}

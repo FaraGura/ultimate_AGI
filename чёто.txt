@@ -1,0 +1,1 @@
+echo_env\Scripts\python.exe test_core_logic.py
