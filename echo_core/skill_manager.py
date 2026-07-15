@@ -286,3 +286,7 @@ class SkillManagerV2:
     def skill_restart(self, args, cb):
         self.log("Перезагрузка модели...")
         return "Модель перезагружена."
+
+
+# Алиас для обратной совместимости с импортом SkillManager
+SkillManager = SkillManagerV2

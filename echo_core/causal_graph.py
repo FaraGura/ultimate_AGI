@@ -15,10 +15,10 @@ EDGE_TYPES = frozenset({
 
 
 def normalize(text: str) -> str:
-    """Каноническая форма: нижний регистр, без дефисов и лишних пробелов."""
+    """Каноническая форма: нижний регистр, без дефисов, но с сохранением пробелов."""
     if not text:
         return ""
-    return text.strip().lower().replace("-", "").replace(" ", "")
+    return text.strip().lower().replace("-", "")
 
 
 class CausalGraph:
@@ -43,6 +43,15 @@ class CausalGraph:
             )
         except Exception:
             pass
+
+    def add_node(self, node_id: str, name: str = None):
+        """Добавляет узел-концепт в граф (для команды научи:)."""
+        node_norm = normalize(node_id)
+        self.db.execute(
+            "INSERT OR IGNORE INTO graph_nodes (node_id, node_type, payload, provenance_source, lamport_tick, physical_time) "
+            "VALUES (?, 'concept', '{}', 'user_teaching', 0, 0)",
+            (node_norm,)
+        )
 
     def add_edge(self, source: str, target: str, relation: str, confidence: float = 0.5):
         source_norm = normalize(source)
@@ -162,7 +171,6 @@ class CausalGraph:
         ]
 
     def find_facts_about(self, concept: str, min_confidence: float = 0.3) -> List[Dict]:
-        """Возвращает все факты, связанные с концептом (нормализованный поиск)."""
         norm = normalize(concept)
         rows = self.db.fetchall(
             """SELECT source_concept, target_concept, relation_type, confidence

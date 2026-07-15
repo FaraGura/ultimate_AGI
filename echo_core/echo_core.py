@@ -20,7 +20,7 @@ from .causal_graph import CausalGraph, normalize
 from .goal_manager import GoalManager
 from .system2 import System2
 from .homeostasis_monitor import HomeostasisMonitor
-from .skill_manager import SkillManager
+from .skill_manager import SkillManagerV2 as SkillManager
 from .intent_router import IntentRouter
 from .style_engine import StyleEngine
 from .crystallization import CrystallizationEngine
@@ -29,37 +29,28 @@ from .curiosity_engine import CuriosityEngine
 from .subjective_speech_engine import SubjectiveSpeechEngine
 from .dialogue_layer.episode_builder import EpisodeBuilder
 from .dialogue_layer.dialogue_state import DialogueState, ExpectationType
-# Оживлённые модули мышления
 from .syllogism_engine import SyllogismEngine
 from .inference_engine import InferenceEngine
 from .guardian import Guardian
 from .belief_manager import BeliefManager
 from .conceptual_core import ConceptualCore
 from .episodic_memory import EpisodicMemory
-# Продвинутые когнитивные движки
 from .prolog_engine import PrologEngine
 from .hypothesis_engine import HypothesisEngine
 from .consolidation_engine import ConsolidationEngine
 from .dialectic_engine import DialecticEngine
-# Knowledge Extractor
 from .knowledge_extractor import KnowledgeExtractor
-# Memory Manager
 from .memory_manager import MemoryManager
-# Knowledge Revision Engine
 from .knowledge_revision_engine import KnowledgeRevisionEngine
-# Новые модули
 from .attention_system import AttentionSystem
 from .concept_formation import ConceptFormation
 from .goal_manager_v2 import GoalManagerV2, GoalType
 from .skill_activation_layer import SkillActivationLayer, Competence
-# Активное обучение
 from language.pos_tagger import POSTagger
-# Стеммер
+from language.logic_parser import LogicParser
 from utils.russian_stemmer import stem
-# Конвейер дообучения
 from .trainer_runtime import TrainingPipeline
 
-# Служебные слова
 STOP_WORDS = {
     "своё", "свой", "своя", "свои", "значит", "это", "есть", "является",
     "что", "как", "где", "когда", "почему", "зачем", "кто", "какой",
@@ -68,17 +59,22 @@ STOP_WORDS = {
     "ему", "ей", "нам", "вам", "им", "тобой", "мной", "ними",
 }
 
-# Ключевые слова обратной связи
 FEEDBACK_POSITIVE = {"верно", "правильно", "да", "верно.", "правильно.", "корректно", "именно"}
 FEEDBACK_NEGATIVE = {"неверно", "неправильно", "нет", "ошибка", "неверно.", "неправильно.", "не верно", "не правильно"}
 FEEDBACK_QUALIFIED = {"не совсем", "частично", "есть исключение", "устарело", "не уверен", "не уверена"}
 
-# Максимальная длина ответа
 MAX_RESPONSE_LENGTH = 500
 
+# Проверка единственности критических компонентов
+_ECHO_CORE_INSTANCE = None
 
 class EchoCore:
     def __init__(self, debug=False):
+        global _ECHO_CORE_INSTANCE
+        if _ECHO_CORE_INSTANCE is not None:
+            raise RuntimeError("EchoCore уже создан. Допустим только один экземпляр.")
+        _ECHO_CORE_INSTANCE = self
+
         self.logger = get_logger("Core")
         self.debug = debug
         self.logger.info("Инициализация Echo AGI v16.1 (LLM-free + DUL)...")
@@ -91,7 +87,6 @@ class EchoCore:
         self.causal = CausalGraph(self.db)
         self.safety.set_causal_graph(self.causal)
 
-        # Оживлённое ядро мышления
         self.guardian = Guardian(self.db)
         self.belief_manager = BeliefManager(self.db, self.guardian)
         self.syllogism = SyllogismEngine(self.db)
@@ -102,29 +97,19 @@ class EchoCore:
         self.dialectic_engine = DialecticEngine()
         self.knowledge_extractor = KnowledgeExtractor(self.causal, self.db)
         self.pos_tagger = POSTagger()
+        self.logic_parser = LogicParser()
         self.induction_threshold = 3
         self.episodic = EpisodicMemory(self.db)
         self.episodic.start()
 
-        # Knowledge Revision Engine
         self.knowledge_revision = KnowledgeRevisionEngine(self.db, self.causal, self.belief_manager)
-
-        # Memory Manager
         self.memory = MemoryManager(
             self.db, self.causal, self.episodic, self.knowledge_extractor,
             self.hypothesis_engine, self.consolidation_engine, self.belief_manager
         )
-
-        # Attention System
         self.attention = AttentionSystem(self.causal, self.episodic, self.memory)
-
-        # Concept Formation
         self.concept_formation = ConceptFormation(self.causal, self.knowledge_revision)
-
-        # Goal Manager v2
         self.goals_v2 = GoalManagerV2(self.causal, self.attention, self.concept_formation)
-
-        # Skill Activation Layer
         self.skill_layer = SkillActivationLayer()
 
         self.system2 = System2(self.db, self.causal, self.embedder)
@@ -136,15 +121,12 @@ class EchoCore:
         self.crystallization = CrystallizationEngine(
             self.db, self.causal, None, self.homeostasis
         )
-
-        # Конвейер дообучения
         self.training_pipeline = TrainingPipeline(self.db)
 
         self.curiosity_engine = CuriosityEngine(
             self.causal, self.crystallization, self.embedder, self.db
         )
 
-        # DUL
         self.dialogue_state = DialogueState()
         self.episode_builder = EpisodeBuilder(self.dialogue_state)
 
@@ -280,23 +262,6 @@ class EchoCore:
     def process_knowledge_inbox(self):
         return self.crystallization.process_inbox()
 
-    def run_sleep_phase(self):
-        """Фаза сна: консолидация знаний и дообучение."""
-        self.logger.info("Запуск фазы сна...")
-
-        # 1. Консолидация эпизодов
-        self.memory.consolidate()
-
-        # 2. Формирование концептов
-        self.concept_formation.analyze()
-
-        # 3. Дообучение модели (если есть LM Studio)
-        if self.crystallization and hasattr(self.crystallization, 'check_lm_studio_available'):
-            if self.crystallization.check_lm_studio_available():
-                self.training_pipeline.run_full_cycle()
-
-        self.logger.info("Фаза сна завершена")
-
     def process_proactive_queue(self) -> str:
         messages = []
         while not self.proactive_queue.empty():
@@ -340,47 +305,50 @@ class EchoCore:
         )
 
     def _build_answer_from_facts(self, concept: str) -> Optional[str]:
-        """Строит осмысленный ответ на основе фактов из графа."""
-        result = self.memory.query(concept, query_type="fact")
-        if not result:
+        try:
+            result = self.memory.query(concept, query_type="fact")
+            if not result:
+                return None
+
+            facts = result.get("facts", [])
+            property_parts = []
+            definition_parts = []
+            action_parts = []
+
+            for fact in facts:
+                if not isinstance(fact, dict):
+                    continue
+                fact_source = fact.get("source", "")
+                fact_relation = fact.get("relation", "")
+                fact_target = fact.get("target", "")
+                if not fact_source or not fact_relation:
+                    continue
+
+                if normalize(fact_source) != normalize(concept):
+                    continue
+                if fact_relation == "IS_A":
+                    definition_parts.append(f"{concept} — это {fact_target}")
+                elif fact_relation == "HAS_PROPERTY":
+                    property_parts.append(fact_target)
+                elif fact_relation == "CAN_DO":
+                    action_parts.append(f"{concept} может {fact_target}")
+                else:
+                    property_parts.append(fact_target)
+
+            parts = []
+            if definition_parts:
+                parts.extend(definition_parts)
+            if property_parts:
+                parts.append(f"{concept} {', '.join(property_parts)}")
+            if action_parts:
+                parts.extend(action_parts)
+
+            if parts:
+                return "Я знаю, что " + "; ".join(parts) + "."
             return None
-
-        facts = result.get("facts", [])
-        property_parts = []
-        definition_parts = []
-        action_parts = []
-
-        for fact in facts:
-            if not isinstance(fact, dict):
-                continue
-            fact_source = fact.get("source", "")
-            fact_relation = fact.get("relation", "")
-            fact_target = fact.get("target", "")
-            if not fact_source or not fact_relation:
-                continue
-
-            if normalize(fact_source) != normalize(concept):
-                continue
-            if fact_relation == "IS_A":
-                definition_parts.append(f"{concept} — это {fact_target}")
-            elif fact_relation == "HAS_PROPERTY":
-                property_parts.append(fact_target)
-            elif fact_relation == "CAN_DO":
-                action_parts.append(f"{concept} может {fact_target}")
-            else:
-                property_parts.append(fact_target)
-
-        parts = []
-        if definition_parts:
-            parts.extend(definition_parts)
-        if property_parts:
-            parts.append(f"{concept} {', '.join(property_parts)}")
-        if action_parts:
-            parts.extend(action_parts)
-
-        if parts:
-            return "Я знаю, что " + "; ".join(parts) + "."
-        return None
+        except Exception as e:
+            self.logger.error(f"Ошибка в _build_answer_from_facts: {e}")
+            return None
 
     def _semantic_search(self, user_text: str):
         rows = self.db.fetchall(
@@ -505,6 +473,19 @@ class EchoCore:
                     return f"[DUL] Я заметила общие свойства у {', '.join(members[:3])} и создала новый концепт: {name}."
         return None
 
+    def _extract_unknown_words(self, text: str) -> list:
+        words = text.split()
+        unknown = []
+        for w in words:
+            clean = w.strip(".,!?():;\"'-").lower()
+            if len(clean) < 3 or clean in STOP_WORDS:
+                continue
+            if not self.causal.is_axiom(clean) and not self.db.fetchone(
+                "SELECT 1 FROM graph_nodes WHERE LOWER(node_id) = ?", (normalize(clean),)
+            ):
+                unknown.append(clean)
+        return unknown
+
     def generate_response(self, user_text: str) -> str:
         self._trace("generate_response", f"input: {user_text[:80]}")
 
@@ -513,13 +494,12 @@ class EchoCore:
         if skill_name:
             return self.skills.execute(skill_name, skill_args)
 
-        # === Продвинутые когнитивные команды ===
         inp = user_text.strip().lower()
         self.reasoning_trace.append(f"Input: {inp}")
 
-        # Prolog-запрос
-        if inp.startswith('?-'):
-            query = inp[2:].strip()
+        # Prolog-запрос (проверяем до lower(), чтобы сохранить переменные заглавными)
+        if user_text.strip().startswith('?-'):
+            query = user_text.strip()[2:].strip()
             resp = self.prolog.query_string(query)
             return resp
 
@@ -544,7 +524,7 @@ class EchoCore:
             if len(parts) == 2:
                 name = parts[0].strip()
                 aff = parts[1].strip()
-                self.conceptual.add_concept(name, [aff], categories=['объект'], provenance='user')
+                self.causal.add_node(name, name)
                 self.causal.add_edge(name, aff, relation='enables', confidence=0.7)
                 self.hypothesis_engine.add_observation(name, aff, 'enables')
                 self.episodic.record_episode(f"Обучение: {name} может {aff}", "", importance=0.8)
@@ -568,10 +548,27 @@ class EchoCore:
                 return f"Если {action}, то возможно: {', '.join(items)}"
             return f"Не знаю, что будет, если {action}."
 
-        # Силлогизм "если... то..."
+        # Силлогизм "если... то..." с автоматическим сохранением фактов в Prolog
         if inp.startswith('если') and 'то' in inp:
-            premise = inp.replace('если', '').strip()
+            premise = inp[5:].strip()
+            if ' то ' in premise:
+                premise = premise.split(' то ')[0].strip()
+            elif premise.endswith(' то'):
+                premise = premise[:-3].strip()
+            premise = premise.rstrip(',').strip()
+
             conclusion = self.syllogism.solve(premise)
+
+            # Извлекаем факты и сохраняем их в Prolog
+            facts = self.syllogism.extract_facts(premise)
+            self.logger.info(f"[DEBUG] Extracted facts: {facts}")
+            for fact in facts:
+                try:
+                    self.prolog.assert_fact(fact['predicate'], fact['arg1'], fact['arg2'])
+                    self.logger.info(f"[SUCCESS] Prolog fact saved: {fact['predicate']}({fact['arg1']}, {fact['arg2']})")
+                except Exception as e:
+                    self.logger.error(f"[FAIL] Could not save fact to Prolog: {e}", exc_info=True)
+
             if conclusion:
                 return f"Из этого следует: {conclusion}"
             return "Не удалось сделать вывод из посылок."
@@ -626,6 +623,9 @@ class EchoCore:
                     value = self.dialogue_state.pending_belief.get("value", value)
 
                 self.confirmed_facts[concept] = value
+                if concept == "self_identity" and value:
+                    self.state.personality.name = value
+
                 self.belief_manager.receive({
                     "source": "echo",
                     "target": value,
@@ -656,6 +656,9 @@ class EchoCore:
             self._pending_teach_concept = None
 
             if concept and not is_refusal and not is_confirmation_only:
+                if len(user_text.split()) > 15 and not re.search(r"это|значит|называется|имеет|является", user_text.lower()):
+                    return "[DUL] Это слишком длинное объяснение. Попробуй короче, например 'X — это Y'."
+
                 extracted = self.knowledge_extractor.extract(user_text)
                 if extracted:
                     if self._is_valid_fact(extracted["subject"], extracted["object"]):
@@ -665,6 +668,13 @@ class EchoCore:
                             "target": extracted["object"],
                             "relation": extracted["relation"],
                         }
+                        new_unknown = self._extract_unknown_words(user_text)
+                        if new_unknown:
+                            next_concept = new_unknown[0]
+                            self._pending_teach_concept = {"concept": next_concept, "asked_at": time.time()}
+                            return (f"[DUL] Я запомнила: {extracted['subject']} "
+                                    f"{extracted['relation']} {extracted['object']}. "
+                                    f"Но я не знаю, что значит «{next_concept}». Можешь объяснить?")
                         return (f"[DUL] Я запомнила: {extracted['subject']} "
                                 f"{extracted['relation']} {extracted['object']}.")
                     else:
@@ -673,6 +683,12 @@ class EchoCore:
                 captured = self._capture_object_teaching(concept, user_text)
                 if captured:
                     self._trace("ActiveLearning", f"taught: {concept}")
+                    new_unknown = self._extract_unknown_words(user_text)
+                    if new_unknown:
+                        next_concept = new_unknown[0]
+                        self._pending_teach_concept = {"concept": next_concept, "asked_at": time.time()}
+                        return (f"[DUL] Спасибо, я запомнила: «{concept}» — это "
+                                f"{user_text.strip()}. Но я не знаю, что значит «{next_concept}». Можешь объяснить?")
                     return (f"[DUL] Спасибо, я запомнила: «{concept}» — это "
                             f"{user_text.strip()}.")
                 return f"[DUL] Я не смогла сохранить объяснение «{concept}». Попробуй иначе?"
@@ -686,20 +702,13 @@ class EchoCore:
         is_identity_question = any(m in user_text.lower() for m in identity_markers)
 
         if is_identity_question:
-            name_candidates = re.findall(r"\b[А-Я][а-я]+\b", user_text)
-            if name_candidates and not user_text.strip().endswith("?"):
-                self._trace("Router", f"possible name teaching: {name_candidates}, passing to DUL")
-            else:
-                self._trace("Router", "identity question detected, routing to Identity")
-                identity = self.confirmed_facts.get("self_identity")
-                if identity:
-                    response = f"[DUL] Меня зовут {identity}."
-                    self._remember_episode(user_text, response, frame, act)
-                    return response
-                else:
-                    response = "[DUL] Я пока не знаю своего имени. Ты можешь меня научить."
-                    self._remember_episode(user_text, response, frame, act)
-                    return response
+            name = self.state.personality.name
+            if name and name != "Эхо":
+                return f"[DUL] Меня зовут {name}."
+            identity = self.confirmed_facts.get("self_identity")
+            if identity:
+                return f"[DUL] Меня зовут {identity}."
+            self._trace("Router", "identity question, no name set")
 
         # === TEACHING не перехватывает вопросы ===
         if act in ("TEACHING", "CORRECTION") and focus == "SELF":
@@ -737,22 +746,23 @@ class EchoCore:
                         }
                     return response
 
-        # === Knowledge Extractor для утвердительных фраз ===
+        # === Knowledge Extractor для утвердительных фраз (с фильтром) ===
         if not user_text.strip().endswith("?") and act != "QUESTION":
-            extracted = self.knowledge_extractor.extract(user_text)
-            if extracted:
-                if self._is_valid_fact(extracted["subject"], extracted["object"]):
-                    self._trace("KnowledgeExtractor", f"fact saved: {extracted['type']} {extracted['subject']} {extracted['relation']} {extracted['object']}")
-                    self._last_statement = {
-                        "source": extracted["subject"],
-                        "target": extracted["object"],
-                        "relation": extracted["relation"],
-                    }
-                    response = f"[DUL] Я запомнила: {extracted['subject']} {extracted['relation']} {extracted['object']}."
-                    self._remember_episode(user_text, response, frame, act)
-                    return response
-                else:
-                    self._trace("KnowledgeExtractor", f"ignored tautology: {extracted['subject']} {extracted['object']}")
+            if len(user_text.split()) <= 15 or re.search(r"это|значит|называется|имеет|является", user_text.lower()):
+                extracted = self.knowledge_extractor.extract(user_text)
+                if extracted:
+                    if self._is_valid_fact(extracted["subject"], extracted["object"]):
+                        self._trace("KnowledgeExtractor", f"fact saved: {extracted['type']} {extracted['subject']} {extracted['relation']} {extracted['object']}")
+                        self._last_statement = {
+                            "source": extracted["subject"],
+                            "target": extracted["object"],
+                            "relation": extracted["relation"],
+                        }
+                        response = f"[DUL] Я запомнила: {extracted['subject']} {extracted['relation']} {extracted['object']}."
+                        self._remember_episode(user_text, response, frame, act)
+                        return response
+                    else:
+                        self._trace("KnowledgeExtractor", f"ignored tautology: {extracted['subject']} {extracted['object']}")
 
         # === Логический вывод (Inference Engine) ===
         if act == "QUESTION" or user_text.strip().endswith("?"):
@@ -785,7 +795,7 @@ class EchoCore:
             search_result = self._semantic_search(user_text)
             self._trace("Search", f"result: {search_result is not None}")
 
-        # --- Активное обучение: незнакомое слово ---
+        # --- Активное обучение: незнакомое слово (с глубокими вопросами) ---
         frame_is_empty = not (frame and (frame.get("action")
                                          or (frame.get("actor") and frame.get("object"))))
         if frame_is_empty and not self.is_greeting(user_text) and not search_result:
@@ -1065,7 +1075,7 @@ class EchoCore:
     # Внутренний монолог
     # ==================================================================
     def internal_monologue(self) -> str:
-        edge_count = self.causal.edge_count()
+        edge_count = self.causal.edge_count() if hasattr(self.causal, 'edge_count') else len(getattr(self.causal, 'edges', []))
         last_steps = list(self.reasoning_trace)[-3:]
         steps_str = '\n'.join(f'  - {s}' for s in last_steps)
         return (

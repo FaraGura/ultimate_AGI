@@ -26,7 +26,6 @@ class DatabaseManager:
             '''CREATE TABLE IF NOT EXISTS graph_nodes (node_id TEXT PRIMARY KEY, node_type TEXT NOT NULL, payload BLOB, context_flags INTEGER DEFAULT 1, provenance_source TEXT DEFAULT 'tabula_rasa', lamport_tick INTEGER DEFAULT 0, physical_time INTEGER DEFAULT 0, origin_instance_id TEXT, parent_node_id TEXT, created_by_module TEXT, payload_schema_hash TEXT, semantic_signature TEXT)''',
             '''CREATE TABLE IF NOT EXISTS graph_edges (edge_id TEXT PRIMARY KEY, source_node_id TEXT NOT NULL, target_node_id TEXT NOT NULL, relation_type TEXT NOT NULL, context_flags INTEGER DEFAULT 1, provenance_source TEXT DEFAULT 'tabula_rasa', confidence_score REAL DEFAULT 1.0, lamport_tick INTEGER DEFAULT 0, physical_time INTEGER DEFAULT 0, origin_instance_id TEXT, parent_node_id TEXT, created_by_module TEXT, FOREIGN KEY (source_node_id) REFERENCES graph_nodes(node_id), FOREIGN KEY (target_node_id) REFERENCES graph_nodes(node_id))''',
             '''CREATE TABLE IF NOT EXISTS graph_conflicts (id INTEGER PRIMARY KEY AUTOINCREMENT, belief_a_id INTEGER, belief_b_id INTEGER, conflict_type TEXT, resolution_status TEXT DEFAULT 'pending')''',
-            # Episodic Memory — события диалога (Этап 1 ТЗ)
             '''CREATE TABLE IF NOT EXISTS episodic_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_text TEXT,
@@ -42,6 +41,24 @@ class DatabaseManager:
         for sql in tables:
             cur.execute(sql)
 
+        # Миграция: добавляем новые столбцы, если их нет (до создания индексов!)
+        new_columns = {
+            'graph_edges': [
+                ('status', 'TEXT DEFAULT "active"'),
+                ('certainty_type', 'TEXT DEFAULT "deductive"'),
+                ('quantifier', 'TEXT DEFAULT "all"'),
+                ('provenance', 'TEXT'),
+                ('context_flags_json', 'TEXT'),
+            ]
+        }
+        for table, columns in new_columns.items():
+            for col_name, col_def in columns:
+                try:
+                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}")
+                    self.logger.info(f"Добавлен столбец {table}.{col_name}")
+                except sqlite3.OperationalError:
+                    pass  # столбец уже существует
+
         # Индексы
         indexes = [
             'CREATE INDEX IF NOT EXISTS idx_concept_name ON concept_nodes(concept)',
@@ -51,7 +68,6 @@ class DatabaseManager:
             'CREATE INDEX IF NOT EXISTS idx_causal_target ON causal_edges(target_concept)',
             'CREATE INDEX IF NOT EXISTS idx_edges_status ON graph_edges(status)',
             'CREATE INDEX IF NOT EXISTS idx_edges_conflict ON graph_edges(context_flags) WHERE context_flags LIKE "%has_conflict%"',
-            # Episodic Memory: быстрый доступ к последним эпизодам и ещё не консолидированным
             'CREATE INDEX IF NOT EXISTS idx_episodic_last_accessed ON episodic_log(last_accessed)',
             'CREATE INDEX IF NOT EXISTS idx_episodic_unconsolidated ON episodic_log(consolidated_to_id) WHERE consolidated_to_id IS NULL',
         ]
@@ -61,8 +77,7 @@ class DatabaseManager:
             except sqlite3.OperationalError:
                 pass
 
-        # FTS5 полнотекстовый индекс по эпизодам (опционально — не на всех сборках SQLite)
-        # Обёрнуто в try/except: если FTS5 недоступен, поиск падает на LIKE.
+        # FTS5 полнотекстовый индекс по эпизодам
         fts_statements = [
             '''CREATE VIRTUAL TABLE IF NOT EXISTS episodic_fts USING fts5(
                 user_text, echo_response,
@@ -95,24 +110,6 @@ class DatabaseManager:
             self.logger.info("FTS5 индекс episodic_fts создан.")
         else:
             self.logger.warning("FTS5 недоступен — EpisodicMemory использует LIKE-поиск.")
-
-        # Миграция: добавляем новые столбцы, если их нет
-        new_columns = {
-            'graph_edges': [
-                ('status', 'TEXT DEFAULT "active"'),
-                ('certainty_type', 'TEXT DEFAULT "deductive"'),
-                ('quantifier', 'TEXT DEFAULT "all"'),
-                ('provenance', 'TEXT'),
-                ('context_flags_json', 'TEXT'),
-            ]
-        }
-        for table, columns in new_columns.items():
-            for col_name, col_def in columns:
-                try:
-                    cur.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_def}")
-                    self.logger.info(f"Добавлен столбец {table}.{col_name}")
-                except sqlite3.OperationalError:
-                    pass  # столбец уже существует
 
         self.conn.commit()
         self.logger.info("База данных инициализирована")

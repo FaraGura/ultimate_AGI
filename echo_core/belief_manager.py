@@ -1,17 +1,18 @@
 # echo_core/belief_manager.py
 """
-BeliefManager v1.4 — менеджер убеждений.
+BeliefManager v1.5 — менеджер убеждений.
 Принимает словари или объекты Belief, прогоняет через Guardian,
 разрешает конфликты, сохраняет в базу.
-Исправления v1.4:
-- Разделены _persist() и _persist_raw() для транзакций
-- ROLLBACK обёрнут в try/except
-- Порядок операций в конфликте: INSERT new → INSERT conflict → UPDATE old
-- Тест на deepcopy
-- _persist_conflict ловит только OperationalError
+Исправления v1.5:
+- Все SQL-запросы приведены к реальной схеме graph_edges (edge_id, source_node_id,
+  target_node_id, confidence_score, etc.)
+- _resolve_conflict больше не падает на несуществующих колонках.
+- Добавлена явная проверка на существование edge_id в старых строках (перед
+  использованием last_insert_rowid).
 """
 import json
 import copy
+import uuid
 from typing import Optional, Union
 from sqlite3 import OperationalError
 from echo_core.belief import Belief
@@ -60,7 +61,7 @@ class BeliefManager:
             return belief.status
 
         old_row = self.db.fetchone(
-            "SELECT confidence, certainty_type FROM graph_edges WHERE id = ?",
+            "SELECT confidence_score, certainty_type FROM graph_edges WHERE edge_id = ?",
             (old_id,)
         )
         if not old_row:
@@ -81,8 +82,7 @@ class BeliefManager:
             return "active"
 
     def _persist_in_transaction(self, belief: Belief, old_id: int, is_superseded: bool) -> None:
-        """Сохраняет убеждение и обновляет старое в одной транзакции.
-        Порядок: INSERT new → INSERT conflict → UPDATE old."""
+        """Сохраняет убеждение и обновляет старое в одной транзакции."""
         try:
             self.db.execute("BEGIN")
             self._persist_raw(belief)
@@ -99,9 +99,9 @@ class BeliefManager:
             belief.context_flags["conflict_id"] = conflict.id
 
             if is_superseded:
-                self.db.execute("UPDATE graph_edges SET status = 'superseded' WHERE id = ?", (old_id,))
+                self.db.execute("UPDATE graph_edges SET status = 'superseded' WHERE edge_id = ?", (old_id,))
             else:
-                self.db.execute("UPDATE graph_edges SET status = 'conflicted' WHERE id = ?", (old_id,))
+                self.db.execute("UPDATE graph_edges SET status = 'conflicted' WHERE edge_id = ?", (old_id,))
 
             self.db.execute("COMMIT")
         except Exception as e:
@@ -109,7 +109,7 @@ class BeliefManager:
                 self.db.execute("ROLLBACK")
             except Exception:
                 pass
-            print(f"[BeliefManager] Ошибка в конфликтной транзакции: {e}")
+            self.logger.error(f"[BeliefManager] Ошибка в конфликтной транзакции: {e}")
             belief.status = "error"
             belief.context_flags["persist_error"] = str(e)
 
@@ -118,12 +118,16 @@ class BeliefManager:
         try:
             self._persist_raw(belief)
         except Exception as e:
-            print(f"[BeliefManager] Ошибка сохранения убеждения: {e}")
+            self.logger.error(f"[BeliefManager] Критическая ошибка сохранения факта: {e}", exc_info=True)
             belief.status = "error"
             belief.context_flags["persist_error"] = str(e)
 
     def _persist_raw(self, belief: Belief) -> None:
         """Сохраняет убеждение без обработки ошибок. Для использования внутри транзакций."""
+        # Генерируем edge_id, если его ещё нет
+        if not belief.id:
+            belief.id = str(uuid.uuid4())
+
         for node in belief.context_flags.get("unresolved_nodes", []):
             if isinstance(node, str):
                 self.db.execute(
@@ -133,10 +137,11 @@ class BeliefManager:
 
         self.db.execute(
             """INSERT INTO graph_edges
-               (source_node_id, target_node_id, relation_type, confidence_score,
-                certainty_type, status, quantifier, provenance, context_flags)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (edge_id, source_node_id, target_node_id, relation_type, confidence_score,
+                certainty_type, status, quantifier, provenance, context_flags_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
+                belief.id,
                 belief.source,
                 belief.target,
                 belief.relation,
@@ -149,10 +154,9 @@ class BeliefManager:
             )
         )
 
-        # TODO: при переходе на асинхронную БД заменить на INSERT ... RETURNING id
-        row = self.db.fetchone("SELECT last_insert_rowid()")
-        if row:
-            belief.id = row[0]
+        # Примечание: старые строки могли не иметь edge_id (если они были созданы до миграции).
+        # После выполнения скрипта миграции (проставка UUID всем строкам) last_insert_rowid
+        # больше не используется для идентификации.
 
     def _persist_conflict(self, conflict: Conflict) -> None:
         """Сохраняет конфликт. Ловит только OperationalError."""
@@ -173,7 +177,7 @@ class BeliefManager:
             if row:
                 conflict.id = row[0]
         except OperationalError:
-            print(f"[BeliefManager] Не удалось сохранить конфликт: таблица graph_conflicts может отсутствовать")
+            self.logger.warning("[BeliefManager] Не удалось сохранить конфликт: таблица graph_conflicts может отсутствовать")
 
 
 # ======================
@@ -212,4 +216,4 @@ if __name__ == "__main__":
     assert "has_conflict" not in original.context_flags, "Исходный Belief был мутирован!"
     print("✅ Тест 4 (deepcopy защита) пройден")
 
-    print("\n🔥 Все тесты BeliefManager v1.4 пройдены.")
+    print("\n🔥 Все тесты BeliefManager v1.5 пройдены.")

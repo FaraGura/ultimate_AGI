@@ -1,5 +1,20 @@
+# Виртуальное окружение
 echo_env/
+
+# Базы данных
 *.db
 *.db-shm
 *.db-wal
-"чёто.txt"
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Логи
+logs/
+
+# Экспорт графа
+causal_graph_export.json
+
+# Личные заметки
+чёто.txt

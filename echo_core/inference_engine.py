@@ -1,6 +1,6 @@
 # echo_core/inference_engine.py
 """
-Inference Engine v3.2 — Производственное ядро умозаключений для Echo Core.
+Inference Engine v3.3 — Производственное ядро умозаключений для Echo Core.
 Поддерживает когнитивный вывод на базе детерминированной формальной логики:
 - Дедукция (Категорические силлогизмы через автоинициализируемый SyllogismEngine)
 - Индукция (Вероятностное обобщение с полной трассировкой первичных наблюдений)
@@ -11,6 +11,9 @@ Inference Engine v3.2 — Производственное ядро умозак
 - Изолированный DFS (через visited.copy()) для точного поиска циклов
 - Защита от тавтологии (А -> А) и дублирования физических ребер
 - Единый реестр типов уверенности CERTAINTY_TYPES
+
+v3.3: Все SQL-запросы приведены к реальной схеме graph_edges
+      (source_node_id, target_node_id, edge_id, confidence_score).
 """
 
 from typing import Optional, Dict, List, Tuple
@@ -33,7 +36,6 @@ class InferenceEngine:
 
     def __init__(self, db, syllogism_engine=None, guardian=None):
         self.db = db
-        # Гибридная инициализация: автоматическое создание реального движка в системе или Mock в тестах
         self.syllogism = syllogism_engine or SyllogismEngine(db)
         self.guardian = guardian
 
@@ -95,7 +97,6 @@ class InferenceEngine:
                 "engine": "inference_engine",
                 "method": "induction",
                 "sample_size": len(observations),
-                # Тотальный трекинг родителей для выстраивания AGI-дерева гипотез
                 "parents": [obs.get("id") for obs in observations if obs.get("id")],
                 "subjects": subjects[:5],
             },
@@ -111,14 +112,14 @@ class InferenceEngine:
     def _find_common_class(self, subjects: List[str]) -> Optional[str]:
         for subject in subjects:
             row = self.db.fetchone(
-                "SELECT target FROM graph_edges WHERE source = ? AND relation_type = 'IS_A' LIMIT 1",
+                "SELECT target_node_id FROM graph_edges WHERE source_node_id = ? AND relation_type = 'IS_A' LIMIT 1",
                 (subject,)
             )
             if row:
                 class_name = row[0]
                 if all(
                     self.db.fetchone(
-                        "SELECT 1 FROM graph_edges WHERE source = ? AND target = ? AND relation_type = 'IS_A'",
+                        "SELECT 1 FROM graph_edges WHERE source_node_id = ? AND target_node_id = ? AND relation_type = 'IS_A'",
                         (s, class_name)
                     )
                     for s in subjects
@@ -147,7 +148,6 @@ class InferenceEngine:
 
         hypotheses = []
         for (prop, value) in source_pairs:
-            # Логический фильтр: исключаем ложный перенос акцидентальных признаков (цвет, имя и т.д.)
             if prop in self.NON_TRANSFERABLE_PROPERTIES:
                 continue
 
@@ -197,13 +197,13 @@ class InferenceEngine:
         middle = middle_terms.pop()
 
         candidates = self.db.fetchall(
-            "SELECT id, source_node_id, target_node_id, relation_type, quantifier, confidence FROM graph_edges WHERE source_node_id = ? OR target_node_id = ?",
+            "SELECT edge_id, source_node_id, target_node_id, relation_type, quantifier, confidence_score FROM graph_edges WHERE source_node_id = ? OR target_node_id = ?",
             (middle, middle)
         )
 
-        for _id, src, tgt, rel, q, conf in candidates:
+        for edge_id, src, tgt, rel, q, conf in candidates:
             candidate = {
-                "id": _id,
+                "id": edge_id,
                 "source": src,
                 "target": tgt,
                 "relation": rel,
@@ -224,7 +224,7 @@ class InferenceEngine:
                     return candidate
         return None
 
-    # ── Модернизированные Защиты Графа ───────────────────────────
+    # ── Защиты Графа ───────────────────────────────────────────
     def _is_trivial(self, conclusion: dict) -> bool:
         return conclusion.get("source") == conclusion.get("target")
 
@@ -254,19 +254,17 @@ class InferenceEngine:
             (start,)
         )
         for (nxt,) in neighbours:
-            # Глубокое ветвление: передаем копию сеттинга, чтобы альтернативные пути не блокировали друг друга
             if self._path_exists(nxt, end, max_depth - 1, visited.copy()):
                 return True
         return False
 
 
 # =====================================================================
-# ВСТРОЕННЫЕ ТЕСТЫ (v3.2 — Проверка индукции и гибридного init)
+# ВСТРОЕННЫЕ ТЕСТЫ (v3.3 — Проверка индукции и гибридного init)
 # =====================================================================
 if __name__ == "__main__":
     from unittest.mock import Mock
 
-    # Изолируем дедукцию через Mock
     mock_syllogism = Mock()
     mock_syllogism.deduce.return_value = {
         "source": "Сократ",
@@ -279,18 +277,15 @@ if __name__ == "__main__":
     mock_db.fetchone.return_value = None
     mock_db.fetchall.return_value = []
 
-    # Проверка гибридного init: передаем Mock для силлогизмов
     engine = InferenceEngine(db=mock_db, syllogism_engine=mock_syllogism)
 
-    # Тест 1: Проверка дедукции и централизованного certainty_type
     p1 = {"id": 10, "source": "люди", "target": "смертны", "relation": "IS_A"}
     p2 = {"id": 11, "source": "Сократ", "target": "люди", "relation": "IS_A"}
     result = engine.deduce(p1, p2)
     assert result is not None
     assert result["certainty_type"] == "deductive"
-    print("✅ Тест 1 (Гибридный __init__ и Дедукция v3.2) пройден")
+    print("✅ Тест 1 (Гибридный __init__ и Дедукция v3.3) пройден")
 
-    # Тест 2: Проверка индукции с полной трассировкой ID родителей
     observations = [
         {"id": 501, "source": "Петя", "target": "играть", "relation": "LOVES"},
         {"id": 502, "source": "Ваня", "target": "играть", "relation": "LOVES"},
@@ -300,6 +295,6 @@ if __name__ == "__main__":
     assert result["certainty_type"] == "inductive"
     assert 501 in result["provenance"]["parents"]
     assert 502 in result["provenance"]["parents"]
-    print("✅ Тест 2 (Индукция v3.2 с трекингом parents) пройден")
+    print("✅ Тест 2 (Индукция v3.3 с трекингом parents) пройден")
 
-    print("\n🔥 Модуль echo_core/inference_engine.py v3.2 полностью готов.")
+    print("\n🔥 Модуль echo_core/inference_engine.py v3.3 полностью готов.")
