@@ -1,3 +1,5 @@
+# echo_core/goal_manager.py
+
 import time
 import math
 from dataclasses import dataclass, field

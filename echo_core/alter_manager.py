@@ -1,9 +1,5 @@
 # echo_core/alter_manager.py
-"""
-Alter Manager v1.0 — система разветвления Echo (Fork Architecture).
-Позволяет создавать изолированные экземпляры Альтеров на основе единого Core.
-Каждый Альтер имеет свой контекст, цели и опыт. Управляется через AlterManager.
-"""
+
 
 import json
 import os

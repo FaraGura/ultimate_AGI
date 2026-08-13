@@ -1,10 +1,5 @@
 # echo_core/conceptual_core.py
-"""
-Conceptual Core v2.0 — извлечение смысла (аффордансов) из текста.
-Превращает текст эпизода в Event Frame: actor, action, object, effect, context.
-Опирается на Language Kernel и опциональный dependency parser (spaCy).
-Без LLM. Детерминирован.
-"""
+
 
 import re
 from typing import Optional, Dict, Any, List

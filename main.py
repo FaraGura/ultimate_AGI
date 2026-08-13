@@ -29,6 +29,22 @@ class AssistantGUI:
                                         bg="#2d2d2d", fg="#ffffff", bd=0, relief=tk.FLAT, pady=6)
         self.crystal_button.pack(fill=tk.X, pady=(0, 4))
 
+        self.llm_start_button = tk.Button(bottom_frame, text="Начать обучение (LM Studio)",
+                                          command=self.start_llm_learning,
+                                          bg="#2d2d2d", fg="#ffffff", bd=0, relief=tk.FLAT, pady=6)
+        self.llm_start_button.pack(fill=tk.X, pady=(0, 4))
+
+        self.llm_stop_button = tk.Button(bottom_frame, text="Остановить обучение",
+                                         command=self.stop_llm_learning,
+                                         bg="#2d2d2d", fg="#ffffff", bd=0, relief=tk.FLAT, pady=6,
+                                         state=tk.DISABLED)
+        self.llm_stop_button.pack(fill=tk.X, pady=(0, 4))
+
+        self.purge_button = tk.Button(bottom_frame, text="Очистить мусор (LLM + кристаллизация)",
+                                      command=self.purge_facts,
+                                      bg="#2d2d2d", fg="#ffffff", bd=0, relief=tk.FLAT, pady=6)
+        self.purge_button.pack(fill=tk.X, pady=(0, 4))
+
         self.send_button = tk.Button(bottom_frame, text="Отправить сигнал",
                                      font=("Arial", 10, "bold"),
                                      command=self.send_message,
@@ -60,11 +76,15 @@ class AssistantGUI:
 
         self.check_proactive_queue()
 
+        self.llm_thread = None
+        self.llm_stop_event = threading.Event()
+
     def check_proactive_queue(self):
-        msg = self.core.process_proactive_queue()
-        if msg:
-            self.chat_area.insert(tk.END, f"Эхо: {msg}\n\n")
-            self.chat_area.see(tk.END)
+        if not self.core._teaching_by_ai:
+            msg = self.core.process_proactive_queue()
+            if msg:
+                self.chat_area.insert(tk.END, f"Эхо: {msg}\n\n")
+                self.chat_area.see(tk.END)
         self.root.after(30000, self.check_proactive_queue)
 
     def setup_clipboard(self, widget, allow_paste=True, allow_cut=True):
@@ -87,7 +107,6 @@ class AssistantGUI:
             except tk.TclError: pass
             return "break"
 
-        # Английские буквы
         for seq in ("<Control-c>", "<Control-C>", "<Control-Key-c>", "<Control-Key-C>"):
             widget.bind(seq, copy_text)
         for seq in ("<Control-v>", "<Control-V>", "<Control-Key-v>", "<Control-Key-V>"):
@@ -97,7 +116,6 @@ class AssistantGUI:
         for seq in ("<Control-a>", "<Control-A>", "<Control-Key-a>", "<Control-Key-A>"):
             widget.bind(seq, select_all)
 
-        # Русские буквы через Cyrillic keysyms
         for seq in ("<Control-Cyrillic_es>", "<Control-Cyrillic_ES>"):
             widget.bind(seq, copy_text)
         for seq in ("<Control-Cyrillic_em>", "<Control-Cyrillic_EM>"):
@@ -107,7 +125,6 @@ class AssistantGUI:
         for seq in ("<Control-Cyrillic_ef>", "<Control-Cyrillic_EF>"):
             widget.bind(seq, select_all)
 
-        # Универсальные системные сочетания
         widget.bind("<Control-Insert>", copy_text)
         if allow_paste:
             widget.bind("<Shift-Insert>", paste_text)
@@ -142,6 +159,57 @@ class AssistantGUI:
             finally:
                 self.crystal_button.config(state=tk.NORMAL, text="Обработать папку знаний (knowledge_input)")
         threading.Thread(target=run, daemon=True).start()
+
+    def start_llm_learning(self):
+        if self.llm_thread and self.llm_thread.is_alive():
+            self.append_chat("⚠️ Обучение уже запущено.\n")
+            return
+
+        self.append_chat("🤖 [Система] Запуск обучения через LM Studio...\n")
+        self.llm_stop_event.clear()
+        self.llm_start_button.config(state=tk.DISABLED, text="⏳ Идёт обучение...")
+        self.llm_stop_button.config(state=tk.NORMAL)
+
+        from echo_core.overnight_learning import run_overnight_learning_session
+
+        def run():
+            try:
+                run_overnight_learning_session(
+                    self.core,
+                    max_iterations=500,
+                    max_duration_minutes=480,
+                    stop_event=self.llm_stop_event,
+                    log_callback=self.append_chat
+                )
+            except Exception as e:
+                self.root.after(0, self.append_chat, f"❌ [Ошибка в потоке обучения]: {e}\n")
+                import traceback
+                traceback.print_exc()
+            finally:
+                self.root.after(0, self._on_llm_learning_finished)
+
+        self.llm_thread = threading.Thread(target=run, daemon=True)
+        self.llm_thread.start()
+
+    def stop_llm_learning(self):
+        if self.llm_thread and self.llm_thread.is_alive():
+            self.append_chat("⏹️ [Система] Отправлен сигнал остановки...\n")
+            self.llm_stop_event.set()
+            self.llm_stop_button.config(state=tk.DISABLED, text="⏹️ Останавливается...")
+        else:
+            self.append_chat("⚠️ Нет активного обучения.\n")
+
+    def _on_llm_learning_finished(self):
+        self.llm_start_button.config(state=tk.NORMAL, text="Начать обучение (LM Studio)")
+        self.llm_stop_button.config(state=tk.DISABLED, text="Остановить обучение")
+        self.append_chat("✅ [Система] Обучение завершено.\n")
+
+    def purge_facts(self):
+        count = self.core.purge_llm_facts_gui()
+        if count >= 0:
+            self.append_chat(f"🧹 [Система] Удалено {count} фактов от LLM и кристаллизации.\n")
+        else:
+            self.append_chat("❌ [Система] Ошибка при очистке.\n")
 
     def append_chat(self, text):
         self.root.after(0, lambda: self.chat_area.insert(tk.END, text))

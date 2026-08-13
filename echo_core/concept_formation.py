@@ -1,8 +1,9 @@
 # echo_core/concept_formation.py
 """
-Concept Formation v1.0 — автоматическое рождение новых понятий.
+Concept Formation v2.0 — автоматическое рождение новых понятий.
 Анализирует CausalGraph, находит кластеры связанных узлов и создаёт гипотезы
 о новых, более общих концептах (например, яблоко + банан → фрукт).
+v2.0: осмысленные имена концептов через поиск общего IS_A или генерацию по свойствам.
 """
 from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
@@ -74,6 +75,56 @@ class ConceptFormation:
         
         return clusters
 
+    def _find_common_is_a(self, cluster: Set[str]) -> Optional[str]:
+        """
+        Ищет общую категорию IS_A для всех членов кластера.
+        Например, если кошка IS_A животное и собака IS_A животное, вернёт 'животное'.
+        """
+        if len(cluster) < 2:
+            return None
+        
+        # Собираем IS_A для каждого члена кластера
+        is_a_sets = []
+        for node in cluster:
+            edges = self.causal.get_edges(source=node, relation="IS_A")
+            targets = {e.get("target", "") for e in edges if e.get("target")}
+            if targets:
+                is_a_sets.append(targets)
+            else:
+                # Если у кого-то нет IS_A, общая категория невозможна
+                return None
+        
+        if len(is_a_sets) < 2:
+            return None
+        
+        # Ищем пересечение всех множеств IS_A
+        common = is_a_sets[0]
+        for s in is_a_sets[1:]:
+            common = common & s
+            if not common:
+                return None
+        
+        # Возвращаем первый общий IS_A (если их несколько — берём самый первый)
+        return list(common)[0] if common else None
+
+    def _generate_name_from_properties(self, cluster: Set[str], common_properties: Set[str]) -> str:
+        """
+        Генерирует осмысленное имя для концепта на основе общих свойств.
+        Использует pymorphy3 для поиска подходящего слова.
+        """
+        # Простейший подход: если среди свойств есть "животное" — используем его
+        for prop in common_properties:
+            if prop in ("животное", "растение", "насекомое", "птица", "рыба", "человек"):
+                return prop
+        
+        # Если нет явного указания — генерируем по шаблону
+        # Например: "существо с шерстью и лапами"
+        if common_properties:
+            props_list = sorted(common_properties)[:3]
+            return f"существо({', '.join(props_list)})"
+        
+        return f"категория({', '.join(sorted(cluster)[:3])})"
+
     def _form_hypothesis(self, cluster: Set[str]) -> Optional[Dict]:
         """
         Формирует гипотезу о новом концепте на основе кластера.
@@ -99,9 +150,12 @@ class ConceptFormation:
         if not common_properties:
             return None
         
-        # Предлагаем название для нового концепта
+        # Пытаемся найти осмысленное имя
+        suggested_name = self._find_common_is_a(cluster)
+        if not suggested_name:
+            suggested_name = self._generate_name_from_properties(cluster, common_properties)
+        
         cluster_list = sorted(cluster)
-        suggested_name = f"категория({', '.join(cluster_list[:3])})"
         
         return {
             "type": "concept_formation",

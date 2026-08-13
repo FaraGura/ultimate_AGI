@@ -1,9 +1,4 @@
-# migrate_schema.py
-"""
-Миграция схемы БД для Echo v16.1 (Forked Cognitive Architecture).
-Добавляет поля контекстной истины, provenance, HLC, Language Kernel.
-Безопасен: не удаляет данные, только ALTER TABLE ADD COLUMN.
-"""
+#UnifiedCoreV11\migrate_schema.py
 import sqlite3
 import sys
 

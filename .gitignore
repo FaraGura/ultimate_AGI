@@ -1,20 +1,8 @@
-# Виртуальное окружение
 echo_env/
-
-# Базы данных
-*.db
-*.db-shm
-*.db-wal
-
-# Python
-__pycache__/
-*.py[cod]
-
-# Логи
+echo_core/libs/
+echo_core/models/
+unified_memory_v14.db
 logs/
-
-# Экспорт графа
-causal_graph_export.json
-
-# Личные заметки
-чёто.txt
+knowledge_input/
+__pycache__/
+*.pyc

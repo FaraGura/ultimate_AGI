@@ -3,12 +3,10 @@ setlocal
 
 cd /d "%~dp0"
 
-set "PYTHON_EXE=%~dp0echo_env\Scripts\python.exe"
-set "PYTHONDONTWRITEBYTECODE=1"
-
-if not exist "%PYTHON_EXE%" (
-    echo [Echo] Python environment not found: %PYTHON_EXE%
-    echo [Echo] Run setup_echo.bat first, or restore the echo_env folder.
+:: Проверяем, есть ли системный Python
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [Echo] Python not found. Please install Python 3.11.
     pause
     exit /b 1
 )
@@ -19,12 +17,16 @@ if not exist "%~dp0main.py" (
     exit /b 1
 )
 
-:: Очистка только старого Language Kernel (знания графа больше не удаляются)
+:: Указываем путь к библиотекам
+set "PYTHONPATH=%~dp0echo_core\libs;%PYTHONPATH%"
+set "PYTHONDONTWRITEBYTECODE=1"
+
+:: Очистка старого Language Kernel
 echo [Echo] Очистка старого Language Kernel...
-"%PYTHON_EXE%" -c "import sqlite3; conn=sqlite3.connect('unified_memory_v14.db'); conn.execute(\"DELETE FROM graph_nodes WHERE provenance_source='tabula_rasa_language'\"); conn.execute(\"DELETE FROM graph_edges WHERE provenance_source='tabula_rasa_language'\"); conn.commit(); print('Language Kernel очищен')"
+python -c "import sqlite3; conn=sqlite3.connect('unified_memory_v14.db'); conn.execute(\"DELETE FROM graph_nodes WHERE provenance_source='tabula_rasa_language'\"); conn.execute(\"DELETE FROM graph_edges WHERE provenance_source='tabula_rasa_language'\"); conn.commit(); print('Language Kernel очищен')"
 
 echo [Echo] Starting from source code...
-"%PYTHON_EXE%" "%~dp0main.py"
+python "%~dp0main.py"
 
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (

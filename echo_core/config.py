@@ -1,3 +1,5 @@
+# echo_core/config.py
+
 import os
 
 # Импортируем пути из корневого файла

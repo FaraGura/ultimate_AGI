@@ -1,8 +1,4 @@
 # memory/memory_interface.py
-"""
-Memory API v1.0 — минимальные интерфейсы для разных типов памяти.
-Обёртки над DatabaseManager. Не заменяют его, а дают явные точки входа.
-"""
 
 
 class KnowledgeMemory:

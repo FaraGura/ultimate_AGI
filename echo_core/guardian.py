@@ -1,12 +1,7 @@
 # echo_core/guardian.py
-"""
-Guardian v2.2 — Детерминированный фильтр логической целостности (Stage A).
-Поддерживает как словари, так и объекты Belief.
-Добавлена защита от циклической валидации (MAX_VALIDATION_DEPTH).
-"""
-
-from typing import Optional, Union
+from typing import List, Optional, Union
 from echo_core.belief import Belief
+from echo_core.causal_graph import normalize
 
 
 class Guardian:
@@ -18,10 +13,21 @@ class Guardian:
     }
     MAX_VALIDATION_DEPTH = 5
 
+    SOURCE_WEIGHTS = {
+        "core_law": 1.2,
+        "user_teaching": 1.0,
+        "external_db": 1.1,
+        "local_llm_teacher": 0.8,
+    }
+
+    HOMONYM_MIN_CONFIDENCE = 0.5
+    HOMONYM_MAX_CONFIDENCE_DIFF = 0.2
+
     def __init__(self, db):
         self.db = db
 
-    def stage_a_filter(self, candidate: Union[dict, Belief]) -> bool:
+    def stage_a_filter(self, candidate: Union[dict, Belief],
+                       fast_path: bool = False) -> bool:
         if isinstance(candidate, Belief):
             data = candidate.to_dict()
         elif isinstance(candidate, dict):
@@ -38,9 +44,12 @@ class Guardian:
         if not self._evidence_check(data):
             data["status"] = "rejected"
             return False
-        if self._contradiction_check(data):
-            data["status"] = "rejected"
-            return False
+
+        # Тяжёлые проверки пропускаются для доверенных источников
+        if not fast_path:
+            if self._contradiction_check(data):
+                data["status"] = "rejected"
+                return False
 
         self._structural_check(data)
         data["status"] = "candidate"
@@ -78,7 +87,7 @@ class Guardian:
         source = data.get("source")
         target = data.get("target")
         row = self.db.fetchone(
-            "SELECT confidence FROM graph_edges WHERE source_node_id = ? AND target_node_id = ? AND relation_type = ?",
+            "SELECT confidence_score FROM graph_edges WHERE source_node_id = ? AND target_node_id = ? AND relation_type = ?",
             (source, target, opposite)
         )
         if row:
@@ -90,13 +99,37 @@ class Guardian:
             data["context_flags"]["weaker_contradiction_detected"] = True
         return False
 
+    def find_homonym_candidates(self, source: str, relation: str,
+                                 target: str, confidence: float) -> List[str]:
+        if confidence < self.HOMONYM_MIN_CONFIDENCE:
+            return []
+
+        source_norm = normalize(source)
+        target_norm = normalize(target)
+
+        rows = self.db.fetchall(
+            "SELECT edge_id, target_node_id, confidence_score FROM graph_edges WHERE source_node_id = ? AND relation_type = ? AND target_node_id != ?",
+            (source_norm, relation, target_norm)
+        )
+
+        candidates = []
+        for edge_id, existing_target, existing_conf in rows:
+            existing_conf = float(existing_conf or 0.0)
+            if existing_conf < self.HOMONYM_MIN_CONFIDENCE:
+                continue
+            if abs(confidence - existing_conf) < self.HOMONYM_MAX_CONFIDENCE_DIFF:
+                candidates.append(edge_id)
+        return candidates
+
     def _structural_check(self, data: dict) -> None:
         source = data.get("source")
         target = data.get("target")
         if not source or not target:
             return
-        src_exists = self.db.fetchone("SELECT 1 FROM graph_nodes WHERE node_id = ?", (source,))
-        tgt_exists = self.db.fetchone("SELECT 1 FROM graph_nodes WHERE node_id = ?", (target,))
+        source_norm = normalize(source)
+        target_norm = normalize(target)
+        src_exists = self.db.fetchone("SELECT 1 FROM graph_nodes WHERE node_id = ?", (source_norm,))
+        tgt_exists = self.db.fetchone("SELECT 1 FROM graph_nodes WHERE node_id = ?", (target_norm,))
         if not src_exists or not tgt_exists:
             data["context_flags"]["unresolved_nodes"] = [source] if not src_exists else []
             if not tgt_exists:
@@ -109,6 +142,20 @@ if __name__ == "__main__":
     from unittest.mock import Mock
     mock_db = Mock()
     g = Guardian(mock_db)
-    assert g.stage_a_filter({"source":"S","target":"P","relation":"IS_A","confidence":0.8,"provenance":{"e":"t"}})
-    assert not g.stage_a_filter({"source":"A","target":"A","relation":"IS_A"})
-    print("✅ Guardian v2.2 OK")
+    assert g.stage_a_filter({"source": "S", "target": "P", "relation": "IS_A", "confidence": 0.8, "provenance": {"e": "t"}})
+    assert not g.stage_a_filter({"source": "A", "target": "A", "relation": "IS_A"})
+
+    # Тест fast_path: пропускает _contradiction_check
+    mock_db.fetchone.return_value = (0.9,)  # якобы существующее противоречие
+    result = g.stage_a_filter({"source": "X", "target": "Y", "relation": "IS_A", "confidence": 0.8, "provenance": {"e": "t"}},
+                              fast_path=True)
+    assert result, "fast_path должен пропустить contradiction"
+    print("✅ fast_path пропускает _contradiction_check")
+
+    # Тест: без fast_path противоречие отклоняется
+    result_normal = g.stage_a_filter({"source": "X", "target": "Y", "relation": "IS_A", "confidence": 0.8, "provenance": {"e": "t"}},
+                                     fast_path=False)
+    assert not result_normal, "без fast_path должно быть rejected"
+    print("✅ обычный путь отклоняет противоречие")
+
+    print("\n🔥 Guardian v2.5 OK")

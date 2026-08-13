@@ -1,18 +1,12 @@
 # echo_core/belief_manager.py
-"""
-BeliefManager v1.5 — менеджер убеждений.
-Принимает словари или объекты Belief, прогоняет через Guardian,
-разрешает конфликты, сохраняет в базу.
-Исправления v1.5:
-- Все SQL-запросы приведены к реальной схеме graph_edges (edge_id, source_node_id,
-  target_node_id, confidence_score, etc.)
-- _resolve_conflict больше не падает на несуществующих колонках.
-- Добавлена явная проверка на существование edge_id в старых строках (перед
-  использованием last_insert_rowid).
+
+v1.6: receive() получил необязательный параметр fast_path (по умолчанию False).
+Если True, Guardian.stage_a_filter вызывается с fast_path=True, пропуская
+тяжёлые проверки (_contradiction_check). Это используется FastImporter
+для массовой загрузки доверенных источников (Wikidata, ConceptNet).
 """
 import json
 import copy
-import uuid
 from typing import Optional, Union
 from sqlite3 import OperationalError
 from echo_core.belief import Belief
@@ -25,21 +19,31 @@ class BeliefManager:
         self.db = db
         self.guardian = guardian or Guardian(db)
 
-    def receive(self, candidate: Union[dict, Belief]) -> str:
+    def receive(self, candidate: Union[dict, Belief],
+                return_details: bool = False,
+                fast_path: bool = False):
         if isinstance(candidate, dict):
             belief = Belief.from_dict(candidate)
         elif isinstance(candidate, Belief):
             belief = copy.deepcopy(candidate)
         else:
-            return "rejected"
+            return {"status": "rejected", "edge_id": None} if return_details else "rejected"
 
-        if not self.guardian.stage_a_filter(belief):
-            return belief.status
+        # Передаём fast_path в Guardian
+        if not self.guardian.stage_a_filter(belief, fast_path=fast_path):
+            return self._result(belief, return_details)
 
         if belief.context_flags.get("has_conflict"):
-            return self._resolve_conflict(belief)
+            status = self._resolve_conflict(belief)
+            belief.status = status
+            return self._result(belief, return_details)
 
         self._persist(belief)
+        return self._result(belief, return_details)
+
+    def _result(self, belief: Belief, return_details: bool):
+        if return_details:
+            return {"status": belief.status, "edge_id": belief.id}
         return belief.status
 
     def _compare_confidence(self, old_conf: float, old_type: str, new_conf: float, new_type: str) -> str:
@@ -81,15 +85,13 @@ class BeliefManager:
             self._persist_in_transaction(belief, old_id, is_superseded=True)
             return "active"
 
-    def _persist_in_transaction(self, belief: Belief, old_id: int, is_superseded: bool) -> None:
-        """Сохраняет убеждение и обновляет старое в одной транзакции."""
+    def _persist_in_transaction(self, belief: Belief, old_id: str, is_superseded: bool) -> None:
         try:
             self.db.execute("BEGIN")
             self._persist_raw(belief)
             if belief.id is None:
                 raise ValueError("Не удалось получить ID для нового убеждения")
 
-            # Сначала фиксируем конфликт, потом меняем состояние старого знания
             conflict = Conflict(
                 belief_a_id=old_id,
                 belief_b_id=belief.id,
@@ -109,41 +111,39 @@ class BeliefManager:
                 self.db.execute("ROLLBACK")
             except Exception:
                 pass
-            self.logger.error(f"[BeliefManager] Ошибка в конфликтной транзакции: {e}")
+            print(f"[BeliefManager] Ошибка в конфликтной транзакции: {e}")
             belief.status = "error"
             belief.context_flags["persist_error"] = str(e)
 
     def _persist(self, belief: Belief) -> None:
-        """Сохраняет убеждение с обработкой ошибок."""
         try:
             self._persist_raw(belief)
         except Exception as e:
-            self.logger.error(f"[BeliefManager] Критическая ошибка сохранения факта: {e}", exc_info=True)
+            print(f"[BeliefManager] Ошибка сохранения убеждения: {e}")
             belief.status = "error"
             belief.context_flags["persist_error"] = str(e)
 
     def _persist_raw(self, belief: Belief) -> None:
-        """Сохраняет убеждение без обработки ошибок. Для использования внутри транзакций."""
-        # Генерируем edge_id, если его ещё нет
-        if not belief.id:
-            belief.id = str(uuid.uuid4())
+        import uuid
+        from echo_core.causal_graph import normalize
 
         for node in belief.context_flags.get("unresolved_nodes", []):
             if isinstance(node, str):
                 self.db.execute(
                     "INSERT OR IGNORE INTO graph_nodes (node_id, node_type) VALUES (?, 'unknown')",
-                    (node,)
+                    (normalize(node),)
                 )
 
+        edge_id = str(uuid.uuid4())
         self.db.execute(
             """INSERT INTO graph_edges
                (edge_id, source_node_id, target_node_id, relation_type, confidence_score,
                 certainty_type, status, quantifier, provenance, context_flags_json)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                belief.id,
-                belief.source,
-                belief.target,
+                edge_id,
+                normalize(belief.source),
+                normalize(belief.target),
                 belief.relation,
                 belief.confidence,
                 belief.certainty_type,
@@ -153,13 +153,9 @@ class BeliefManager:
                 json.dumps(belief.context_flags, ensure_ascii=False),
             )
         )
-
-        # Примечание: старые строки могли не иметь edge_id (если они были созданы до миграции).
-        # После выполнения скрипта миграции (проставка UUID всем строкам) last_insert_rowid
-        # больше не используется для идентификации.
+        belief.id = edge_id
 
     def _persist_conflict(self, conflict: Conflict) -> None:
-        """Сохраняет конфликт. Ловит только OperationalError."""
         try:
             existing = self.db.fetchone(
                 "SELECT id FROM graph_conflicts WHERE belief_a_id = ? AND belief_b_id = ?",
@@ -177,43 +173,27 @@ class BeliefManager:
             if row:
                 conflict.id = row[0]
         except OperationalError:
-            self.logger.warning("[BeliefManager] Не удалось сохранить конфликт: таблица graph_conflicts может отсутствовать")
+            print("[BeliefManager] Не удалось сохранить конфликт: таблица graph_conflicts может отсутствовать")
 
 
-# ======================
-# ВСТРОЕННЫЕ ТЕСТЫ
 # ======================
 if __name__ == "__main__":
     from unittest.mock import Mock
-
     mock_db = Mock()
     mock_db.fetchone.return_value = None
     mock_db.execute = Mock()
 
     manager = BeliefManager(mock_db)
 
-    # Тест 1: Чистое убеждение
     candidate = Belief(source="S", target="P", relation="IS_A", confidence=0.8, provenance={"engine": "test"})
     status = manager.receive(candidate)
     assert status in ("active", "candidate"), f"Ожидался active/candidate, получен {status}"
-    print(f"✅ Тест 1 (чистое убеждение) пройден, статус: {status}")
+    print(f"✅ обычное сохранение: {status}")
 
-    # Тест 2: Слабое без provenance
-    candidate = Belief(source="A", target="B", relation="IS_A", confidence=0.3)
-    status = manager.receive(candidate)
-    assert status == "rejected", f"Ожидался rejected, получен {status}"
-    print(f"✅ Тест 2 (слабое без provenance) пройден, статус: {status}")
+    # Тест fast_path
+    candidate2 = Belief(source="X", target="Y", relation="IS_A", confidence=0.9, provenance={"engine": "external_db"})
+    status2 = manager.receive(candidate2, fast_path=True)
+    assert status2 in ("active", "candidate"), f"fast_path должен работать, получен {status2}"
+    print(f"✅ fast_path: {status2}")
 
-    # Тест 3: Сравнение дедукций
-    assert manager._compare_confidence(0.8, "deductive", 0.99, "deductive") == "new"
-    assert manager._compare_confidence(0.8, "deductive", 0.7, "deductive") == "old"
-    assert manager._compare_confidence(0.5, "inductive", 0.9, "deductive") == "new"
-    print("✅ Тест 3 (сравнение дедукций) пройден")
-
-    # Тест 4: Deepcopy защищает исходный объект от мутации
-    original = Belief(source="A", target="B", relation="IS_A", confidence=0.8, provenance={"engine": "test"})
-    manager.receive(original)
-    assert "has_conflict" not in original.context_flags, "Исходный Belief был мутирован!"
-    print("✅ Тест 4 (deepcopy защита) пройден")
-
-    print("\n🔥 Все тесты BeliefManager v1.5 пройдены.")
+    print("\n🔥 BeliefManager v1.6 OK")

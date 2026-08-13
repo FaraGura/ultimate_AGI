@@ -1,4 +1,4 @@
-"""Expanded causal graph for Echo v16.1 — stdlib only, no networkx."""
+# echo_core/causal_graph.py
 
 import json
 import os
@@ -44,6 +44,16 @@ class CausalGraph:
         except Exception:
             pass
 
+        # Миграция: добавляем колонку confidence, если её ещё нет
+        try:
+            self.db.execute(
+                "ALTER TABLE causal_edges ADD COLUMN confidence REAL DEFAULT 0.5"
+            )
+            self.logger.info("Добавлена колонка confidence в causal_edges")
+        except Exception:
+            # Колонка уже существует — всё в порядке
+            pass
+
     def add_node(self, node_id: str, name: str = None):
         """Добавляет узел-концепт в граф (для команды научи:)."""
         node_norm = normalize(node_id)
@@ -53,11 +63,19 @@ class CausalGraph:
             (node_norm,)
         )
 
-    def add_edge(self, source: str, target: str, relation: str, confidence: float = 0.5):
+    def add_edge(
+        self,
+        source: str,
+        target: str,
+        relation: str,
+        confidence: float = 0.5,
+        provenance_source: str = "causal_graph",
+    ):
         source_norm = normalize(source)
         target_norm = normalize(target)
         relation = relation or "causal"
         confidence = max(0.0, min(1.0, float(confidence)))
+
         self.db.execute(
             """INSERT OR REPLACE INTO causal_edges
                (source_concept, target_concept, relation_type, confidence,

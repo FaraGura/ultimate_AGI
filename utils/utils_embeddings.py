@@ -1,52 +1,59 @@
-import numpy as np
-from collections import OrderedDict
-from echo_core.config import LOGS_DIR
+# util/utils_embeddings.py
 
-try:
-    from sentence_transformers import SentenceTransformer
-except Exception:
-    SentenceTransformer = None
+import os
+from typing import Optional
+from utils.utils_logger import get_logger
+
 
 class EmbeddingProvider:
-    def __init__(self, logger):
-        self.logger = logger
+    def __init__(self, logger=None):
+        self.logger = logger or get_logger("EmbeddingProvider")
         self.model = None
-        self.cache = OrderedDict()
-        self.max_cache_size = 200
-        if SentenceTransformer is None:
-            self.logger.warning("SentenceTransformer не установлен. Эмбеддинги отключены.")
+        self._init_local_model()
+
+    def _init_local_model(self):
+        """Загружает локальную модель rubert-tiny2 без интернета."""
+        # Блокируем любые попытки выйти в сеть
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+        model_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "echo_core", "models", "rubert-tiny2"
+        )
+
+        # Ищем папку модели (она может быть во вложенной подпапке snapshots/...)
+        if not os.path.exists(model_path):
+            self.logger.warning(f"Папка модели не найдена: {model_path}")
             return
+
         try:
-            self.logger.info("Загружаю Nomic Embed Text v1.5...")
-            self.model = SentenceTransformer('nomic-ai/nomic-embed-text-v1.5')
-            self.logger.info("Nomic Embed загружен.")
+            from sentence_transformers import SentenceTransformer
+            self.model = SentenceTransformer(model_path, trust_remote_code=False)
+            self.logger.info("Локальный эмбеддер rubert-tiny2 загружен (офлайн).")
         except Exception as e:
-            self.logger.error(f"Ошибка загрузки Nomic Embed: {e}")
+            self.logger.error(f"Ошибка загрузки локальной модели: {e}")
             self.model = None
 
-    def get_embedding(self, text: str) -> np.ndarray:
+    def similarity(self, text1: str, text2: str) -> float:
+        """Косинусная схожесть двух текстов. Если модель не загружена, возвращает 0."""
+        if self.model is None:
+            return 0.0
+        try:
+            emb1 = self.model.encode([text1], show_progress_bar=False)[0]
+            emb2 = self.model.encode([text2], show_progress_bar=False)[0]
+            return float(
+                (emb1 @ emb2) / (max(1e-9, __import__("numpy").linalg.norm(emb1) * __import__("numpy").linalg.norm(emb2)))
+            )
+        except Exception:
+            return 0.0
+
+    def encode(self, text: str):
+        """Возвращает вектор для одного текста. Если модель не загружена, возвращает None."""
         if self.model is None:
             return None
-        cleaned = text.strip().lower()
-        if cleaned in self.cache:
-            self.cache.move_to_end(cleaned)
-            return self.cache[cleaned]
-        emb = self.model.encode(cleaned)
-        if len(self.cache) >= self.max_cache_size:
-            self.cache.popitem(last=False)
-        self.cache[cleaned] = emb
-        return emb
-
-    def similarity(self, text1: str, text2: str) -> float:
-        if self.model is None:
-            return 0.0
-        a = self.get_embedding(text1)
-        b = self.get_embedding(text2)
-        if a is None or b is None:
-            return 0.0
-        dot = np.dot(a, b)
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return float(dot / (norm_a * norm_b))
+        try:
+            return self.model.encode([text], show_progress_bar=False)[0]
+        except Exception:
+            return None

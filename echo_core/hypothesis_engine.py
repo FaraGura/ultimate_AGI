@@ -12,6 +12,7 @@ class HypothesisEngine:
         self.db = db
         self.causal_graph = causal_graph
         self._create_tables()
+        self._bridge_callback = None  # будет установлен из EchoCore
 
     def _create_tables(self):
         self.db.execute(
@@ -113,6 +114,13 @@ class HypothesisEngine:
                     concept_a, concept_b, relation_type, confidence, count,
                     status, now, now,
                 ),
+            )
+
+        # Если гипотеза стала правилом — отправляем её в граф убеждений через мост
+        if status == "rule" and self._bridge_callback:
+            self._bridge_callback(
+                concept_a, concept_b, relation_type, confidence,
+                {"engine": "hypothesis_engine", "method": "auto_rule", "evidence_count": count}
             )
 
         edge_type = "causal" if status == "rule" else "hypothesis"
