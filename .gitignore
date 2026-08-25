@@ -1,8 +1,5 @@
-echo_env/
-echo_core/libs/
-echo_core/models/
-unified_memory_v14.db
-logs/
-knowledge_input/
-__pycache__/
-*.pyc
+```
+# Database WAL and SHM files
+*.db-shm
+*.db-wal
+```

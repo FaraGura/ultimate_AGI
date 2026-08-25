@@ -1,5 +1,5 @@
 # echo_core/belief_manager.py
-
+"""
 v1.6: receive() получил необязательный параметр fast_path (по умолчанию False).
 Если True, Guardian.stage_a_filter вызывается с fast_path=True, пропуская
 тяжёлые проверки (_contradiction_check). Это используется FastImporter
